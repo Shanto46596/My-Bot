@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHANTO BOT HOSTING V3</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#090d18;color:#f1f5f9;
+  font-family:Arial,sans-serif
+}
+header{
+  padding:18px 5%;background:#111a2b;
+  border-bottom:1px solid #273449;
+  display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap
+}
+h1{font-size:20px;margin:0}
+main{max-width:1050px;margin:auto;padding:22px}
+.grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:14px;margin:20px 0
+}
+.card{
+  background:#141e30;border:1px solid #28364d;
+  border-radius:15px;padding:18px;margin-bottom:16px
+}
+.muted{color:#9aa9bf;font-size:13px}
+.number{font-size:28px;font-weight:bold;margin-top:8px}
+input{
+  width:100%;padding:12px;margin:7px 0 13px;
+  background:#0b1220;border:1px solid #34445e;
+  border-radius:9px;color:white
+}
+label{font-size:13px;color:#cbd5e1}
+button{
+  border:0;border-radius:8px;padding:10px 13px;
+  margin:4px;background:#2563eb;color:white;
+  font-weight:bold
+}
+button.stop{background:#b91c1c}
+button.resume{background:#047857}
+button.delete{background:#475569}
+button.logout{background:#334155}
+.actions{display:flex;flex-wrap:wrap;margin-top:12px}
+.flash{padding:12px;border-radius:9px;margin:10px 0}
+.success{background:#123b2b;color:#a7f3d0}
+.error{background:#4b1d26;color:#fecdd3}
+.status{font-weight:bold;color:#93c5fd}
+a{color:#93c5fd}
+@media(max-width:500px){
+  header{align-items:flex-start}
+  main{padding:14px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>SHANTO BOT HOSTING V3</h1>
+    <div class="muted">Python Bot Control Dashboard</div>
+  </div>
+  <form method="POST" action="{{ url_for('logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="logout">Logout</button>
+  </form>
+</header>
+
+<main>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="flash {{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="grid">
+  <div class="card">
+    <div class="muted">Registered Projects</div>
+    <div class="number">{{ total }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Hosting Provider</div>
+    <div class="number" style="font-size:22px">Render</div>
+  </div>
+  <div class="card">
+    <div class="muted">Code Storage</div>
+    <div class="number" style="font-size:22px">GitHub</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Add Existing Bot Project</h3>
+  <p class="muted">
+    প্রথমে GitHub Repository-টি Render Worker হিসেবে Connect করবে।
+    তারপর Render Service ID এখানে যোগ করবে।
+  </p>
+
+  <form method="POST" action="{{ url_for('add_project') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label>Project Name</label>
+    <input name="name" placeholder="My Telegram Bot" required maxlength="60">
+
+    <label>GitHub Repository URL</label>
+    <input name="repo" placeholder="https://github.com/username/repository" required>
+
+    <label>Render Service ID</label>
+    <input name="service_id" placeholder="srv-xxxxxxxxxxxxxxxx" required>
+
+    <button type="submit">Add Project</button>
+  </form>
+</div>
+
+<h2>Your Projects</h2>
+
+{% if not projects %}
+  <div class="card">
+    <p class="muted">এখনো কোনো Project যোগ করা হয়নি।</p>
+  </div>
+{% endif %}
+
+{% for item in projects %}
+  <div class="card">
+    <h3>{{ item.service_name }}</h3>
+    <p class="muted">Project: {{ item.project.name }}</p>
+    <p class="muted">
+      GitHub:
+      <a href="{{ item.project.repo }}" target="_blank" rel="noopener">
+        Repository খুলুন
+      </a>
+    </p>
+    <p class="muted">Service ID: {{ item.project.service_id }}</p>
+    <p>Status: <span class="status">{{ item.status }}</span></p>
+
+    {% if item.error %}
+      <p class="muted">Status পাওয়া যায়নি: {{ item.error }}</p>
+    {% endif %}
+
+    <div class="actions">
+      {% for action, label, css in [
+        ('deploy','Redeploy',''),
+        ('restart','Restart',''),
+        ('resume','Resume','resume'),
+        ('stop','Stop','stop')
+      ] %}
+        <form method="POST"
+              action="{{ url_for('project_action', project_id=item.project.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="{{ action }}">
+          <button class="{{ css }}" type="submit">{{ label }}</button>
+        </form>
+      {% endfor %}
+
+      <a target="_blank" rel="noopener"
+         href="https://dashboard.render.com/">Render Dashboard</a>
+
+      <form method="POST"
+            action="{{ url_for('delete_project', project_id=item.project.id) }}"
+            onsubmit="return confirm('শুধু Dashboard থেকে Project record মুছবে। চালিয়ে যাবে?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="delete" type="submit">Remove Record</button>
+      </form>
+    </div>
+  </div>
+{% endfor %}
+
+<p class="muted">
+  নোট: Dashboard-এর Stop/Resume বোতাম Render Worker নিয়ন্ত্রণ করে।
+  Remove Record শুধু এই Dashboard থেকে রেকর্ড সরায়; Render Service মুছে দেয় না।
+</p>
+
+</main>
+</body>
+  </html>
